@@ -1,0 +1,67 @@
+spring:
+  ai:
+    mcp:
+      server:
+        type: SYNC
+        session-timeout-ms: 3600000
+        # Enable SSE (Server-Sent Events)
+        transport: sse
+
+        # Define the path for the initial SSE connection
+        sse-endpoint: /sse
+
+        # Define the path where Claude will POST messages back to you
+        sse-message-endpoint: /mcp/message
+
+        # Explicitly disable Stdio to prevent log pollution issues
+        stdio:
+          enabled: false
+        webmvc:
+          enabled: true
+  datasource:
+    url: jdbc:postgresql://localhost:5432/jiratokensdb
+    username: myuser
+    password: mysecretpassword  # <--- Must match POSTGRES_PASSWORD
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+  application:
+    name:
+      oauth
+  security:
+    oauth2:
+      client:
+        registration:
+          jira:
+            clientId: ${JIRA_CLIENT_ID}
+            clientSecret: ${JIRA_CLIENT_SECRET}
+            authorizationGrantType: authorization_code
+            redirectUri: ${JIRA_CALLBACK_URL}
+            scope:
+              - read:me
+              - read:jira-work
+              - write:jira-work
+              - offline_access
+        provider:
+          jira:
+            authorizationUri: https://auth.atlassian.com/authorize?audience=api.atlassian.com
+            tokenUri: https://auth.atlassian.com/oauth/token
+            userInfoUri: https://api.atlassian.com/me
+            userNameAttribute: account_id
+jasypt:
+  encryptor:
+    password: myencryptionpassword
+#    iv-generator-classname: org.jasypt.iv.NoIvGenerator
+#    algorithm: PBEWithMD5AndDES
+
+
+debug: true
+
+logging:
+  level:
+    root: INFO
+    org.springframework.web: TRACE
+    org.springframework.security: TRACE
+    org.springframework.web.servlet.mvc: TRACE
+    org.springframework.web.servlet.DispatcherServlet: TRACE
