@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "jira-server": {
+      "command": "npx",
+      "args":[
+        "-y",
+        "mcp-remote",
+        "http://localhost:8080/sse",
+        "--allow-http",
+        "--header",
+        "Authorization: Bearer <YOUR_JIRA_CONNECTION_TOKEN_HERE>"
+      ]
+    }
+  }
+}

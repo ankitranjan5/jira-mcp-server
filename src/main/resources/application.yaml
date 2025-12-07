@@ -28,7 +28,7 @@ spring:
     show-sql: true
   application:
     name:
-      oauth
+      jira-mcp-server
   security:
     oauth2:
       client:

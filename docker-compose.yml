@@ -1,0 +1,27 @@
+services:
+  db:
+    image: postgres:16
+    container_name: jira_mcp_postgres
+    environment:
+      POSTGRES_USER: ${SPRING_DATASOURCE_USERNAME:-myuser}
+      POSTGRES_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-mysecretpassword}
+      POSTGRES_DB: ${POSTGRES_DB:-jiratokensdb}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: jira_mcp_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
+
