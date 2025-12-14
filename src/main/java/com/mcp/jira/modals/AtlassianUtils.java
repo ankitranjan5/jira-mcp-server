@@ -1,14 +1,16 @@
 package com.mcp.jira.modals;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class ConfluenceModals {
+public class AtlassianUtils {
 
     private static final ObjectMapper mapper = new ObjectMapper();
 
@@ -16,6 +18,36 @@ public class ConfluenceModals {
     public record ConfluencePageSummary(String pageId, String title, String type, String url, String spaceId) {
 
     }
+
+    public record JiraIssueSummary(String key, String summary, String status, String description) {}
+
+    public List<JiraIssueSummary> parseJiraResponse(String jsonBody, String cloudId) {
+        List<JiraIssueSummary> summaries = new ArrayList<>();
+        ObjectMapper mapper = new ObjectMapper();
+
+        try {
+            JsonNode root = mapper.readTree(jsonBody);
+            JsonNode issues = root.path("issues");
+
+            if (issues.isArray()) {
+                for (JsonNode issue : issues) {
+                    String key = issue.path("id").asText();
+                    String summary = issue.path("fields").path("summary").asText();
+                    String status = issue.path("fields").path("status").path("name").asText();
+                    String htmlDescription = issue.path("renderedFields").path("description").asText();
+
+                    if (htmlDescription.isEmpty() || htmlDescription.equals("null")) {
+                        htmlDescription = "No description provided.";
+                    }
+                    summaries.add(new JiraIssueSummary(key, summary, status, htmlDescription));
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return summaries;
+    }
+
 
 
     public static List<ConfluencePageSummary> cleanResponse(String jsonBody) {
@@ -91,5 +123,21 @@ public class ConfluenceModals {
 
         // Extract text
         return doc.text().trim();
+    }
+
+    private String getCloudId(String accessToken) throws JsonProcessingException {
+        String accessibleJson = WebClient.create()
+                .get()
+                .uri("https://api.atlassian.com/oauth/token/accessible-resources")
+                .header("Authorization", "Bearer " + accessToken)
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
+
+        JsonNode arr = mapper.readTree(accessibleJson);
+        if (arr.isEmpty()) {
+            throw new RuntimeException("No accessible JIRA resources found for this user.");
+        }
+        return arr.get(0).get("id").asText();
     }
 }

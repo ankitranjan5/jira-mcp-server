@@ -5,6 +5,7 @@ import com.mcp.jira.repository.AtlassianTokenRepository;
 import com.mcp.jira.service.AtlassianTokenService;
 import org.jasypt.encryption.StringEncryptor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
@@ -28,6 +29,7 @@ public class TokenManager {
     @Autowired
     private ClientRegistrationRepository clientRegistrationRepository;
 
+    @Cacheable(value = "access_tokens", key = "#principal")
     public String getToken(String principalName) {
         Optional<AtlassianToken> jiraToken =  atlassianTokenRepository.findById(principalName);
 

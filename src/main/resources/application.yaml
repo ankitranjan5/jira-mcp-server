@@ -29,6 +29,14 @@ spring:
   application:
     name:
       atlassian-mcp-server
+
+  # Force Spring to propagate context in async scenarios
+  task:
+    execution:
+      context-propagation:
+        enabled: true
+
+
   security:
     oauth2:
       client:
@@ -65,6 +73,8 @@ spring:
               - write:confluence-props
               - write:confluence-space
               - write:page:confluence
+              - read:space:confluence
+
         provider:
           atlassian:
             authorizationUri: https://auth.atlassian.com/authorize?audience=api.atlassian.com
@@ -76,12 +86,12 @@ jasypt:
     password: myencryptionpassword
 
 
-debug: true
+# enable tracing
+management:
+  tracing:
+    sampling:
+      probability: 1.0
 
-logging:
-  level:
-    root: INFO
-    org.springframework.web: TRACE
-    org.springframework.security: TRACE
-    org.springframework.web.servlet.mvc: TRACE
-    org.springframework.web.servlet.DispatcherServlet: TRACE
+  zipkin:
+    tracing:
+      endpoint: http://localhost:9411/api/v2/spans

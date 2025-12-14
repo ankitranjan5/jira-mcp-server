@@ -4,7 +4,8 @@ import com.mcp.jira.managers.TokenManager;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mcp.jira.modals.ConfluenceModals;
+import com.mcp.jira.modals.AtlassianUtils;
+import io.micrometer.observation.annotation.Observed;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -13,6 +14,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +26,9 @@ public class AtlassianService {
 
     @Autowired
     TokenManager tokenManager;
+
+    AtlassianUtils atlassianUtils = new AtlassianUtils();
+
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -70,11 +76,10 @@ public class AtlassianService {
         return tokenManager.getToken(principal);
     }
 
-    // ==================================================================================
-    // TOOL 1: GET ISSUE (Filtered Response)
-    // ==================================================================================
+    @Observed(name = "tool.jira.issue", contextualName = "search-issue-jira")
     @Tool(description = "Get Jira issue details by issue ID (e.g., PROJ-123)")
-    public String getIssue(String issueId) {
+//    @GetMapping("/get/confluence")
+    public String getIssue(@RequestParam String issueId) {
         try {
             String accessToken = getAccessToken();
             String cloudId = getCloudId(accessToken);
@@ -112,9 +117,43 @@ public class AtlassianService {
         }
     }
 
-    // ==================================================================================
-    // TOOL 2: CREATE ISSUE
-    // ==================================================================================
+    @Observed(name = "tool.jira.jql", contextualName = "searching-jira")
+    @Tool(description = "Search for Jira issues using JQL (Jira Query Language). Returns a list of issues with Key, Summary, and Status.")
+    public List<AtlassianUtils.JiraIssueSummary> searchJiraIssues(@RequestParam String jql) {
+        try {
+            String accessToken = getAccessToken();
+
+            String cloudId = getCloudId(accessToken);
+
+            String url = "https://api.atlassian.com/ex/jira/" + cloudId + "/rest/api/3/search/jql?jql=" + jql;//URLEncoder.encode(jql, StandardCharsets.UTF_8);
+
+            String responseJson = WebClient.create()
+                    .get()
+                    .uri(uriBuilder -> uriBuilder.scheme("https")
+                            .host("api.atlassian.com")
+                            .path("/ex/jira/" + cloudId + "/rest/api/3/search/jql")
+                            .queryParam("jql", jql)
+                            .queryParam("fields", "summary,status,description")
+                            .queryParam("expand", "renderedFields")
+                            .build())
+                    .header("Authorization", "Bearer " + accessToken)
+                    .retrieve()
+                    .onStatus(status -> status.is4xxClientError() || status.is5xxServerError(),
+                            clientResponse -> clientResponse.bodyToMono(String.class)
+                                    .map(body -> new RuntimeException("Status: " +
+                                            clientResponse.statusCode() +
+                                            ", body: " + body)))
+                    .bodyToMono(String.class)
+                    .block();
+            return atlassianUtils.parseJiraResponse(responseJson, cloudId);
+
+        } catch (Exception e) {
+            System.err.println("Error searching Jira: " + e.getMessage());
+            return List.of();
+        }
+    }
+
+    @Observed(name = "tool.jira.create", contextualName = "create-issue-jira")
     @Tool(description = "Create a new Jira issue. Requires project key, summary, and issue type (e.g., Task, Bug).")
     public String createIssue(String projectKey, String summary, String issueType, String description) {
         try {
@@ -126,6 +165,10 @@ public class AtlassianService {
             fields.put("project", Map.of("key", projectKey));
             fields.put("summary", summary);
             fields.put("issuetype", Map.of("name", issueType));
+
+            if(description!=null && !description.isEmpty()) {
+                fields.put("description", description);
+            }
 
 
             Map<String, Object> payload = Map.of("fields", fields);
@@ -148,9 +191,7 @@ public class AtlassianService {
         }
     }
 
-    // ==================================================================================
-    // TOOL 3: UPDATE ISSUE
-    // ==================================================================================
+    @Observed(name = "tool.jira.update", contextualName = "update-jira")
     @Tool(description = "Update an existing Jira issue summary.")
     public String updateIssueSummary(String issueKey, String newSummary) {
         try {
@@ -178,9 +219,9 @@ public class AtlassianService {
         }
     }
 
+    @Observed(name = "tool.confluence.cql", contextualName = "searching-confluence")
     @Tool(description = "Search Confluence pages using Confluence Query Language(CQL).")
-//    @GetMapping("/get/cql")
-    public List<ConfluenceModals.ConfluencePageSummary> searchConfluencePages(@RequestParam String cql) throws Exception{
+    public List<AtlassianUtils.ConfluencePageSummary> searchConfluencePages(@RequestParam String cql) throws Exception{
         try {
             String accessToken = getAccessToken();
             String cloudId = getCloudId(accessToken);
@@ -193,7 +234,7 @@ public class AtlassianService {
                     .bodyToMono(String.class)
                     .block();
 
-            List<ConfluenceModals.ConfluencePageSummary> summaries = ConfluenceModals.cleanResponse(responseJson);
+            List<AtlassianUtils.ConfluencePageSummary> summaries = AtlassianUtils.cleanResponse(responseJson);
 
             return summaries;
 
@@ -202,8 +243,8 @@ public class AtlassianService {
         }
     }
 
+    @Observed(name = "tool.confluence.page", contextualName = "search-page-confluence")
     @Tool(description = "Get Confluence page content by page ID.")
-//    @GetMapping("/get/confluence")
     public String getConfluencePageContent(@RequestParam String pageId) throws Exception{
         try {
             String accessToken = getAccessToken();
@@ -226,16 +267,68 @@ public class AtlassianService {
             JsonNode root = objectMapper.readTree(responseJson);
             String rawHtmlBody = root.path("body").path("storage").path("value").asText();
 
-            ConfluenceModals confluenceModals = new ConfluenceModals();
-
-            return confluenceModals.getPageContentForSummary(rawHtmlBody);
+            return atlassianUtils.getPageContentForSummary(rawHtmlBody);
 
         } catch (Exception e) {
             return "Error fetching Confluence page content: " + e.getMessage();
         }
     }
 
-//    @GetMapping("/get/confluence")
+    @Observed(name = "tool.confluence.spaces", contextualName = "search-spaces-confluence")
+    @Tool(description = "Lists all available Confluence Spaces. Returns ID, Key, and Name for each space. Use this to find the 'spaceId' required for creating a page.")
+    public String getConfluenceSpaces() {
+        try {
+            String accessToken = getAccessToken();
+            String cloudId = getCloudId(accessToken);
+
+            // V2 Spaces Endpoint
+            // Pattern: https://api.atlassian.com/ex/confluence/{cloudId}/wiki/api/v2/spaces
+            String url = "https://api.atlassian.com/ex/confluence/" + cloudId + "/wiki/api/v2/spaces?limit=50";
+
+            String responseJson = WebClient.create()
+                    .get()
+                    .uri(url)
+                    .header("Authorization", "Bearer " + accessToken)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
+
+            return parseSpaces(responseJson);
+
+        } catch (Exception e) {
+            return "Error fetching spaces: " + e.getMessage();
+        }
+    }
+
+    private String parseSpaces(String jsonBody) {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root = mapper.readTree(jsonBody);
+            JsonNode results = root.path("results");
+
+            StringBuilder output = new StringBuilder();
+            output.append("Found Spaces:\n");
+            output.append("--------------------------------------------------\n");
+            output.append(String.format("%-15s | %-10s | %s%n", "Space ID", "Key", "Name"));
+            output.append("--------------------------------------------------\n");
+
+            if (results.isArray()) {
+                for (JsonNode space : results) {
+                    String id = space.path("id").asText();
+                    String key = space.path("key").asText();
+                    String name = space.path("name").asText();
+
+                    output.append(String.format("%-15s | %-10s | %s%n", id, key, name));
+                }
+            }
+            return output.toString();
+
+        } catch (Exception e) {
+            return "Error parsing spaces JSON.";
+        }
+    }
+
+    @Observed(name = "tool.confluence.create.page", contextualName = "create-confluence-page")
     @Tool(description = "Create a new Confluence page. REQUIRES a numeric spaceId (not spaceKey). Content must be in HTML storage format.")
     public String createConfluencePage(
             @RequestParam String spaceId,
