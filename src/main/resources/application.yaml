@@ -30,12 +30,6 @@ spring:
     name:
       atlassian-mcp-server
 
-  # Force Spring to propagate context in async scenarios
-  task:
-    execution:
-      context-propagation:
-        enabled: true
-
 
   security:
     oauth2:
