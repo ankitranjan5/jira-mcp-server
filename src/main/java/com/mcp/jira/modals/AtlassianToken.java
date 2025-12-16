@@ -8,10 +8,10 @@ import jakarta.persistence.Lob;
 import java.time.Instant;
 
 @Entity
-public class JiraToken {
+public class AtlassianToken {
 
     @Id
-    private String principalName; // The user's unique name (from Google/GitHub)
+    private String principalName;
 
     @Lob
     @Column(columnDefinition = "TEXT")
@@ -23,10 +23,9 @@ public class JiraToken {
 
     private Instant expiresAt;
 
-    // Constructors, Getters, and Setters
-    public JiraToken() {}
+    public AtlassianToken() {}
 
-    public JiraToken(String principalName, String encryptedAccessToken, String encryptedRefreshToken, Instant expiresAt) {
+    public AtlassianToken(String principalName, String encryptedAccessToken, String encryptedRefreshToken, Instant expiresAt) {
         this.principalName = principalName;
         this.encryptedAccessToken = encryptedAccessToken;
         this.encryptedRefreshToken = encryptedRefreshToken;

@@ -31,19 +31,15 @@ public class SecurityConfig {
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                                 .requestMatchers(HttpMethod.POST, "/mcp/message").authenticated()
-                        .requestMatchers("/auth/jira/callback", "/error","/").permitAll()
+                        .requestMatchers("/auth/atlassian/callback", "/error","/").permitAll()
                                 .anyRequest().authenticated()
                 )
                 .addFilterBefore(appTokenFilter, org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class)
                 .oauth2Login(oauth2 -> oauth2
-                        .defaultSuccessUrl("/auth/jira/callback", true)
+                        .defaultSuccessUrl("/auth/atlassian/callback", true)
                 );
 
         return http.build();
     }
 
-    @PostConstruct
-    public void enableContextPropagation() {
-        SecurityContextHolder.setStrategyName(SecurityContextHolder.MODE_INHERITABLETHREADLOCAL);
-    }
 }

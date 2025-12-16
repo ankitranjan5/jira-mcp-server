@@ -25,26 +25,52 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
   application:
     name:
-      jira-mcp-server
+      atlassian-mcp-server
+
+
   security:
     oauth2:
       client:
         registration:
-          jira:
-            clientId: ${JIRA_CLIENT_ID}
-            clientSecret: ${JIRA_CLIENT_SECRET}
+          atlassian:
+            clientId: ${ATLASSIAN_CLIENT_ID}
+            clientSecret: ${ATLASSIAN_CLIENT_SECRET}
             authorizationGrantType: authorization_code
-            redirectUri: ${JIRA_CALLBACK_URL}
+            redirectUri: ${ATLASSIAN_CALLBACK_URL}
             scope:
               - read:me
               - read:jira-work
               - write:jira-work
               - offline_access
+#              - write:confluence-content
+              - read:confluence-space.summary
+              - read:confluence-content.all
+              - search:confluence
+              - read:confluence-user
+              - read:confluence-props
+              - read:confluence-content.summary
+              - read:confluence-content.permission
+              - read:confluence-groups
+              - read:page:confluence
+              - read:content:confluence
+              - read:content-details:confluence
+              - read:space-details:confluence
+              - read:blogpost:confluence
+              - read:comment:confluence
+              - read:label:confluence
+              - read:watcher:confluence
+              - read:group:confluence
+              - write:confluence-content
+              - write:confluence-props
+              - write:confluence-space
+              - write:page:confluence
+              - read:space:confluence
+
         provider:
-          jira:
+          atlassian:
             authorizationUri: https://auth.atlassian.com/authorize?audience=api.atlassian.com
             tokenUri: https://auth.atlassian.com/oauth/token
             userInfoUri: https://api.atlassian.com/me
@@ -54,12 +80,12 @@ jasypt:
     password: myencryptionpassword
 
 
-debug: true
+# enable tracing
+management:
+  tracing:
+    sampling:
+      probability: 1.0
 
-logging:
-  level:
-    root: INFO
-    org.springframework.web: TRACE
-    org.springframework.security: TRACE
-    org.springframework.web.servlet.mvc: TRACE
-    org.springframework.web.servlet.DispatcherServlet: TRACE
+  zipkin:
+    tracing:
+      endpoint: http://localhost:9411/api/v2/spans
